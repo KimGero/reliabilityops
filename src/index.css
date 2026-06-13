@@ -1,3 +1,4 @@
+/* src/index.css */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { height: 100%; }
 body { background: #070b14; color: #dde4f0; font-family: sans-serif; }
