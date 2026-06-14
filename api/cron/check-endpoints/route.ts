@@ -1,17 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Database, CronJobResult } from '../../../src/types'
+import type { Database, CronJobResult } from '../../../src/types/index.ts'
 import { sendSlackAlert, sendEmailAlert } from '../../../src/lib/alerts.js'
 
-export const config         = { runtime: 'edge' }
+export const config = { runtime: 'edge' }
 export const preferredRegion = 'auto'
 
-// ── Auth guard ─────────────────────────────────────────────────────────────────
+// ── Auth guard ───────────────────────────────────────────────────────────────
 
 function isCronRequest(req: Request): boolean {
   return req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`
 }
 
-// ── Health check ───────────────────────────────────────────────────────────────
+// ── Health check ─────────────────────────────────────────────────────────────
 
 interface CheckResult {
   endpoint_id: string
@@ -22,14 +22,18 @@ interface CheckResult {
 }
 
 async function checkEndpoint(
-  url: string, method: string, expectedStatus: number,
-  timeoutMs: number, endpointId: string,
+  url: string,
+  method: string,
+  expectedStatus: number,
+  timeoutMs: number,
+  endpointId: string,
   maxAttempts = 2
 ): Promise<CheckResult> {
   let lastError: string | null = null
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
+
     const start = Date.now()
     try {
       const res = await fetch(url, {
@@ -38,8 +42,10 @@ async function checkEndpoint(
         redirect: 'follow',
         headers: { 'User-Agent': 'ReliabilityOps/1.0' },
       })
+
       const rt = Date.now() - start
       const isUp = res.status === expectedStatus
+
       return {
         endpoint_id: endpointId,
         is_up: isUp,
@@ -47,16 +53,23 @@ async function checkEndpoint(
         response_time_ms: rt,
         error_message: isUp ? null : `Status ${res.status} (expected ${expectedStatus})`,
       }
-    } catch (err) {
-      lastError = (err as Error).message
+    } catch (err: any) {
+      lastError = err.message
     }
   }
-  return { endpoint_id: endpointId, is_up: false, status_code: null, response_time_ms: null, error_message: lastError }
+
+  return {
+    endpoint_id: endpointId,
+    is_up: false,
+    status_code: null,
+    response_time_ms: null,
+    error_message: lastError,
+  }
 }
 
-// ── Open incident lookup ────────────────────────────────────────────────────────
+// ── Open incident lookup ─────────────────────────────────────────────────────
 
-async function getOpenIncident(sb: ReturnType<typeof createClient<Database>>, endpointId: string) {
+async function getOpenIncident(sb: any, endpointId: string) {
   const { data } = await sb
     .from('incidents')
     .select('id, started_at, status')
@@ -65,13 +78,14 @@ async function getOpenIncident(sb: ReturnType<typeof createClient<Database>>, en
     .order('started_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
   return data
 }
 
-// ── Alert dispatch ─────────────────────────────────────────────────────────────
+// ── Alert dispatch ───────────────────────────────────────────────────────────
 
 async function sendAlerts(
-  sb: ReturnType<typeof createClient<Database>>,
+  sb: any,
   ep: { id: string; name: string; url: string },
   check: CheckResult,
   isRecovery: boolean
@@ -85,41 +99,74 @@ async function sendAlerts(
   if (!configs?.length) return
 
   const payload = {
-    endpointName: ep.name, endpointUrl: ep.url,
+    endpointName: ep.name,
+    endpointUrl: ep.url,
     error: check.error_message ?? undefined,
     responseTime: check.response_time_ms ?? undefined,
     statusCode: check.status_code ?? undefined,
     isRecovery,
   }
 
-  await Promise.allSettled(configs.map(cfg => {
-    if (cfg.channel === 'slack') return sendSlackAlert(cfg.destination, payload)
-    if (cfg.channel === 'email') return sendEmailAlert(process.env.RESEND_API_KEY!, [cfg.destination], payload)
-  }))
+  await Promise.allSettled(
+    configs.map((cfg: any) => {
+      if (cfg.channel === 'slack') return sendSlackAlert(cfg.destination, payload)
+      if (cfg.channel === 'email') return sendEmailAlert(process.env.RESEND_API_KEY!, [cfg.destination], payload)
+      return null
+    })
+  )
 }
 
-// ── Main handler ────────────────────────────────────────────────────────────────
+// ── Main handler ─────────────────────────────────────────────────────────────
 
 export default async function handler(req: Request): Promise<Response> {
-  if (!isCronRequest(req)) return new Response('Unauthorized', { status: 401 })
+  if (!isCronRequest(req)) {
+    return new Response('Unauthorized', { status: 401 })
+  }
 
   const t0 = Date.now()
-  const sb = createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const result: CronJobResult = { checked: 0, failed: 0, incidents_created: 0, incidents_resolved: 0, duration_ms: 0 }
+  const sb = createClient<Database>(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
-  const { data: endpoints, error } = await sb.from('endpoints').select('*').order('created_at')
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 })
-  if (!endpoints?.length) return new Response(JSON.stringify({ message: 'No endpoints', ...result }))
+  const result: CronJobResult = {
+    checked: 0,
+    failed: 0,
+    incidents_created: 0,
+    incidents_resolved: 0,
+    duration_ms: 0,
+  }
+
+  const { data: endpoints, error } = await sb
+    .from('endpoints')
+    .select('*')
+    .order('created_at')
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+  }
+
+  if (!endpoints?.length) {
+    return new Response(JSON.stringify({ message: 'No endpoints', ...result }), { status: 200 })
+  }
 
   const CONCURRENCY = 10
+
   for (let i = 0; i < endpoints.length; i += CONCURRENCY) {
     await Promise.allSettled(
-      endpoints.slice(i, i + CONCURRENCY).map(async ep => {
-        const check = await checkEndpoint(ep.url, ep.method, ep.expected_status, ep.timeout_ms, ep.id)
+      endpoints.slice(i, i + CONCURRENCY).map(async (ep: any) => {
+        const check = await checkEndpoint(
+          ep.url,
+          ep.method || 'GET',
+          ep.expected_status || 200,
+          ep.timeout_ms || 10000,
+          ep.id
+        )
+
         result.checked++
         if (!check.is_up) result.failed++
 
-        // Persist check result
+        // Save check
         await sb.from('checks').insert({
           endpoint_id: check.endpoint_id,
           is_up: check.is_up,
@@ -128,19 +175,27 @@ export default async function handler(req: Request): Promise<Response> {
           error_message: check.error_message,
         })
 
-        // Incident logic (v1 — simple; upgraded Day 4)
+        // Incident & Alert logic
         const openIncident = await getOpenIncident(sb, ep.id)
 
         if (!check.is_up && !openIncident) {
-          await sb.from('incidents').insert({ endpoint_id: ep.id, status: 'Investigating' })
+          await sb.from('incidents').insert({
+            endpoint_id: ep.id,
+            status: 'Investigating',
+          })
           result.incidents_created++
           await sendAlerts(sb, ep, check, false)
         }
 
         if (check.is_up && openIncident) {
-          await sb.from('incidents')
-            .update({ resolved_at: new Date().toISOString(), status: 'Resolved' })
+          await sb
+            .from('incidents')
+            .update({
+              resolved_at: new Date().toISOString(),
+              status: 'Resolved',
+            })
             .eq('id', openIncident.id)
+
           result.incidents_resolved++
           await sendAlerts(sb, ep, check, true)
         }
@@ -149,5 +204,8 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   result.duration_ms = Date.now() - t0
-  return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } })
+
+  return new Response(JSON.stringify(result), {
+    headers: { 'Content-Type': 'application/json' },
+  })
 }
