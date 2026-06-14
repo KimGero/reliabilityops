@@ -2,17 +2,14 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database, CronJobResult } from '../../../src/types/index.ts'
 import { sendSlackAlert, sendEmailAlert } from '../../../src/lib/alerts.js'
 
-export const config = { runtime: 'edge' }
-export const preferredRegion = 'auto'
+export const dynamic = 'force-dynamic'
 
 // ── Auth guard ───────────────────────────────────────────────────────────────
-
 function isCronRequest(req: Request): boolean {
   return req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`
 }
 
 // ── Health check ─────────────────────────────────────────────────────────────
-
 interface CheckResult {
   endpoint_id: string
   is_up: boolean
@@ -68,7 +65,6 @@ async function checkEndpoint(
 }
 
 // ── Open incident lookup ─────────────────────────────────────────────────────
-
 async function getOpenIncident(sb: any, endpointId: string) {
   const { data } = await sb
     .from('incidents')
@@ -78,12 +74,10 @@ async function getOpenIncident(sb: any, endpointId: string) {
     .order('started_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-
   return data
 }
 
 // ── Alert dispatch ───────────────────────────────────────────────────────────
-
 async function sendAlerts(
   sb: any,
   ep: { id: string; name: string; url: string },
@@ -116,9 +110,8 @@ async function sendAlerts(
   )
 }
 
-// ── Main handler ─────────────────────────────────────────────────────────────
-
-export default async function handler(req: Request): Promise<Response> {
+// ── Main GET handler ─────────────────────────────────────────────────────────
+export async function GET(req: Request) {
   if (!isCronRequest(req)) {
     return new Response('Unauthorized', { status: 401 })
   }
@@ -167,22 +160,21 @@ export default async function handler(req: Request): Promise<Response> {
         if (!check.is_up) result.failed++
 
         // Save check
-        await sb.from('checks').insert({
+        await (sb.from('checks') as any).insert({
           endpoint_id: check.endpoint_id,
           is_up: check.is_up,
           status_code: check.status_code,
           response_time_ms: check.response_time_ms,
           error_message: check.error_message,
-        } as any);
+        })
 
-        // Incident & Alert logic
         const openIncident = await getOpenIncident(sb, ep.id)
 
         if (!check.is_up && !openIncident) {
-          await sb.from('incidents').insert({
+          await (sb.from('incidents') as any).insert({
             endpoint_id: ep.id,
             status: 'Investigating',
-          } as any);
+          })
           result.incidents_created++
           await sendAlerts(sb, ep, check, false)
         }
