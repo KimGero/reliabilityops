@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database, CronJobResult } from '../../../src/types'
-import { sendSlackAlert, sendEmailAlert } from '../../../src/lib/alerts'
+import { sendSlackAlert, sendEmailAlert } from '../../../src/lib/alerts.js'
 
 export const config         = { runtime: 'edge' }
 export const preferredRegion = 'auto'
