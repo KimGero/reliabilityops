@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Database, CronJobResult } from '../../../src/types/index.ts'
-import { sendSlackAlert, sendEmailAlert } from '../../../src/lib/alerts.js'
-
+import type { Database, CronJobResult } from '@/types/index.ts'
+import { sendSlackAlert, sendEmailAlert } from '@/lib/alerts.js'
 
 export const dynamic = 'force-dynamic'
 
@@ -111,7 +110,7 @@ async function sendAlerts(
   )
 }
 
-// ── Main Handler ─────────────────────────────────────────────────────────────
+// ── Main GET handler ─────────────────────────────────────────────────────────
 export async function GET(req: Request) {
   if (!isCronRequest(req)) {
     return new Response('Unauthorized', { status: 401 })
