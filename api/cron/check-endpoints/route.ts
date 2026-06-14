@@ -173,7 +173,7 @@ export default async function handler(req: Request): Promise<Response> {
           status_code: check.status_code,
           response_time_ms: check.response_time_ms,
           error_message: check.error_message,
-        })
+        } as any);
 
         // Incident & Alert logic
         const openIncident = await getOpenIncident(sb, ep.id)
@@ -182,14 +182,13 @@ export default async function handler(req: Request): Promise<Response> {
           await sb.from('incidents').insert({
             endpoint_id: ep.id,
             status: 'Investigating',
-          })
+          } as any);
           result.incidents_created++
           await sendAlerts(sb, ep, check, false)
         }
 
         if (check.is_up && openIncident) {
-          await sb
-            .from('incidents')
+          await (sb.from('incidents') as any)
             .update({
               resolved_at: new Date().toISOString(),
               status: 'Resolved',
