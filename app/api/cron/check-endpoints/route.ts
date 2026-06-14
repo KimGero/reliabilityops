@@ -4,199 +4,106 @@ import { sendSlackAlert, sendEmailAlert } from '@/lib/alerts.js'
 
 export const dynamic = 'force-dynamic'
 
-// ── Auth guard ───────────────────────────────────────────────────────────────
-function isCronRequest(req: Request): boolean {
-  return req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-// ── Health check ─────────────────────────────────────────────────────────────
-interface CheckResult {
-  endpoint_id: string
-  is_up: boolean
-  status_code: number | null
-  response_time_ms: number | null
-  error_message: string | null
-}
+const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-async function checkEndpoint(
-  url: string,
-  method: string,
-  expectedStatus: number,
-  timeoutMs: number,
-  endpointId: string,
-  maxAttempts = 2
-): Promise<CheckResult> {
-  let lastError: string | null = null
+const SLACK_WEBHOOK = process.env.SLACK_WEBHOOK_URL
+const RESEND_API_KEY = process.env.RESEND_API_KEY
+const ALERT_EMAILS = process.env.ALERT_EMAILS?.split(',').map(e => e.trim()) || []
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
+export async function GET(request: Request) {
+  // Auth check
+  const authHeader = request.headers.get('authorization')
+  const expectedToken = `Bearer ${process.env.CRON_SECRET}`
 
-    const start = Date.now()
-    try {
-      const res = await fetch(url, {
-        method,
-        signal: AbortSignal.timeout(timeoutMs),
-        redirect: 'follow',
-        headers: { 'User-Agent': 'ReliabilityOps/1.0' },
-      })
+  if (authHeader !== expectedToken) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-      const rt = Date.now() - start
-      const isUp = res.status === expectedStatus
+  const results: CronJobResult[] = []
+  let checked = 0
+  let down = 0
 
-      return {
-        endpoint_id: endpointId,
-        is_up: isUp,
-        status_code: res.status,
-        response_time_ms: rt,
-        error_message: isUp ? null : `Status ${res.status} (expected ${expectedStatus})`,
-      }
-    } catch (err: any) {
-      lastError = err.message
+  try {
+    const { data: endpoints, error } = await supabase
+      .from('endpoints')
+      .select('*')
+      .eq('is_active', true)
+
+    if (error) throw error
+    if (!endpoints || endpoints.length === 0) {
+      return Response.json({ success: true, checked: 0, down: 0, message: 'No active endpoints found' })
     }
-  }
 
-  return {
-    endpoint_id: endpointId,
-    is_up: false,
-    status_code: null,
-    response_time_ms: null,
-    error_message: lastError,
-  }
-}
+    for (const endpoint of endpoints) {
+      checked++
+      const start = Date.now()
 
-// ── Open incident lookup ─────────────────────────────────────────────────────
-async function getOpenIncident(sb: any, endpointId: string) {
-  const { data } = await sb
-    .from('incidents')
-    .select('id, started_at, status')
-    .eq('endpoint_id', endpointId)
-    .is('resolved_at', null)
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  return data
-}
-
-// ── Alert dispatch ───────────────────────────────────────────────────────────
-async function sendAlerts(
-  sb: any,
-  ep: { id: string; name: string; url: string },
-  check: CheckResult,
-  isRecovery: boolean
-) {
-  const { data: configs } = await sb
-    .from('alert_configs')
-    .select('*')
-    .eq('endpoint_id', ep.id)
-    .eq(isRecovery ? 'notify_on_recovery' : 'notify_on_down', true)
-
-  if (!configs?.length) return
-
-  const payload = {
-    endpointName: ep.name,
-    endpointUrl: ep.url,
-    error: check.error_message ?? undefined,
-    responseTime: check.response_time_ms ?? undefined,
-    statusCode: check.status_code ?? undefined,
-    isRecovery,
-  }
-
-  await Promise.allSettled(
-    configs.map((cfg: any) => {
-      if (cfg.channel === 'slack') return sendSlackAlert(cfg.destination, payload)
-      if (cfg.channel === 'email') return sendEmailAlert(process.env.RESEND_API_KEY!, [cfg.destination], payload)
-      return null
-    })
-  )
-}
-
-// ── Main GET handler ─────────────────────────────────────────────────────────
-export async function GET(req: Request) {
-  if (!isCronRequest(req)) {
-    return new Response('Unauthorized', { status: 401 })
-  }
-
-  const t0 = Date.now()
-  const sb = createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  const result: CronJobResult = {
-    checked: 0,
-    failed: 0,
-    incidents_created: 0,
-    incidents_resolved: 0,
-    duration_ms: 0,
-  }
-
-  const { data: endpoints, error } = await sb
-    .from('endpoints')
-    .select('*')
-    .order('created_at')
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
-  }
-
-  if (!endpoints?.length) {
-    return new Response(JSON.stringify({ message: 'No endpoints', ...result }), { status: 200 })
-  }
-
-  const CONCURRENCY = 10
-
-  for (let i = 0; i < endpoints.length; i += CONCURRENCY) {
-    await Promise.allSettled(
-      endpoints.slice(i, i + CONCURRENCY).map(async (ep: any) => {
-        const check = await checkEndpoint(
-          ep.url,
-          ep.method || 'GET',
-          ep.expected_status || 200,
-          ep.timeout_ms || 10000,
-          ep.id
-        )
-
-        result.checked++
-        if (!check.is_up) result.failed++
-
-        // Save check
-        await (sb.from('checks') as any).insert({
-          endpoint_id: check.endpoint_id,
-          is_up: check.is_up,
-          status_code: check.status_code,
-          response_time_ms: check.response_time_ms,
-          error_message: check.error_message,
+      try {
+        const res = await fetch(endpoint.url, { 
+          method: 'HEAD', 
+          cache: 'no-store',
+          signal: AbortSignal.timeout(10000) 
         })
 
-        const openIncident = await getOpenIncident(sb, ep.id)
+        const responseTime = Date.now() - start
+        const isUp = res.ok
 
-        if (!check.is_up && !openIncident) {
-          await (sb.from('incidents') as any).insert({
-            endpoint_id: ep.id,
-            status: 'Investigating',
-          })
-          result.incidents_created++
-          await sendAlerts(sb, ep, check, false)
+        if (!isUp) {
+          down++
+          const payload = {
+            endpointName: endpoint.name,
+            endpointUrl: endpoint.url,
+            statusCode: res.status,
+            responseTime,
+            isRecovery: false
+          } as const
+
+          if (SLACK_WEBHOOK) await sendSlackAlert(SLACK_WEBHOOK, payload)
+          if (RESEND_API_KEY && ALERT_EMAILS.length > 0) {
+            await sendEmailAlert(RESEND_API_KEY, ALERT_EMAILS, payload)
+          }
         }
 
-        if (check.is_up && openIncident) {
-          await (sb.from('incidents') as any)
-            .update({
-              resolved_at: new Date().toISOString(),
-              status: 'Resolved',
-            })
-            .eq('id', openIncident.id)
+      } catch (err: any) {
+        down++
+        const payload = {
+          endpointName: endpoint.name,
+          endpointUrl: endpoint.url,
+          error: err.message || 'Unknown error',
+          isRecovery: false
+        } as const
 
-          result.incidents_resolved++
-          await sendAlerts(sb, ep, check, true)
+        if (SLACK_WEBHOOK) await sendSlackAlert(SLACK_WEBHOOK, payload)
+        if (RESEND_API_KEY && ALERT_EMAILS.length > 0) {
+          await sendEmailAlert(RESEND_API_KEY, ALERT_EMAILS, payload)
         }
-      })
-    )
+      }
+    }
+
+    const result: CronJobResult = {
+      success: true,
+      message: `Checked ${checked} endpoints, ${down} down`,
+      checked,
+      down
+    }
+
+    results.push(result)
+
+    return Response.json({ 
+      success: true, 
+      checked, 
+      down, 
+      message: result.message 
+    })
+
+  } catch (error: any) {
+    console.error('Cron job failed:', error)
+    return Response.json({ 
+      success: false, 
+      error: error.message 
+    }, { status: 500 })
   }
-
-  result.duration_ms = Date.now() - t0
-
-  return new Response(JSON.stringify(result), {
-    headers: { 'Content-Type': 'application/json' },
-  })
 }

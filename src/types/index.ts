@@ -170,9 +170,9 @@ export interface Database {
 // Cron
 
 export interface CronJobResult {
-  checked: number
-  failed: number
-  incidents_created: number
-  incidents_resolved: number
-  duration_ms: number
+  success: boolean
+  message: string
+  checked?: number
+  down?: number
+  results?: CronJobResult[]  // optional
 }
