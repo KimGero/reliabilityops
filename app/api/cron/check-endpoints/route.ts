@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Database, CronJobResult } from '@/types/index'
-import { sendSlackAlert, sendEmailAlert } from '@/lib/alerts'
+import type { Database, CronJobResult } from '@/types/index.ts'
+import { sendSlackAlert, sendEmailAlert } from '@/lib/alerts.js'
 
 export const dynamic = 'force-dynamic'
 
