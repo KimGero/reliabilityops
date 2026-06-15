@@ -1,3 +1,6 @@
+import { Database as SupabaseDatabase } from './supabase.js'
+
+export type Database = SupabaseDatabase
 
 export type HttpMethod      = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'
 export type EndpointStatus  = 'up' | 'down' | 'degraded' | 'unknown'
@@ -22,7 +25,7 @@ export interface Endpoint {
   created_by: string | null
   created_at: string
   updated_at: string
-  // Computed from latest check (from view)
+  // Computed from latest check
   status?: EndpointStatus
   last_response_time_ms?: number | null
   last_checked_at?: string | null
@@ -123,56 +126,12 @@ export interface AddEndpointForm {
   slo_target: number
 }
 
-// Supabase Database Interface
-
-export interface Database {
-  public: {
-    Tables: {
-      endpoints: {
-        Row: Endpoint
-        Insert: Omit<Endpoint, 'id' | 'created_at' | 'updated_at' | 'status' | 'last_response_time_ms' | 'last_checked_at' | 'uptime_24h'>
-        Update: Partial<Omit<Endpoint, 'id' | 'created_at'>>
-      }
-      checks: {
-        Row: Check
-        Insert: Omit<Check, 'id' | 'checked_at'>
-        Update: never
-      }
-      incidents: {
-        Row: Incident
-        Insert: Omit<Incident, 'id' | 'started_at' | 'endpoint'>
-        Update: Partial<Pick<Incident, 'resolved_at' | 'acknowledged_by' | 'acknowledged_at' | 'status'>>
-      }
-      alert_configs: {
-        Row: AlertConfig
-        Insert: Omit<AlertConfig, 'id' | 'created_at'>
-        Update: Partial<Omit<AlertConfig, 'id' | 'created_at'>>
-      }
-      audit_logs: {
-        Row: AuditLogEntry
-        Insert: Omit<AuditLogEntry, 'id' | 'created_at'>
-        Update: never
-      }
-    }
-    Views: {
-      endpoints_with_status: {
-        Row: Endpoint & {
-          status: EndpointStatus
-          last_response_time_ms: number | null
-          last_checked_at: string | null
-          uptime_24h: number | null
-        }
-      }
-    }
-  }
-}
-
 // Cron
 
 export interface CronJobResult {
-  success: boolean
-  message: string
-  checked?: number
-  down?: number
-  results?: CronJobResult[]  // optional
+  checked: number
+  failed: number
+  incidents_created: number
+  incidents_resolved: number
+  duration_ms: number
 }

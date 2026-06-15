@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/check-endpoints",
+      "schedule": "* * * * *"
+    }
+  ],
+  "functions": {
+    "api/cron/check-endpoints.ts": {
+      "maxDuration": 30
+    }
+  }
+}
