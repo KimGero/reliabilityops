@@ -94,12 +94,18 @@ export default async function handler(req: Request): Promise<Response> {
   if (!endpoints?.length) return new Response(JSON.stringify({ message: 'No endpoints', ...result }))
 
   const CONCURRENCY = 10
-  for (let i = 0; i < endpoints.length; i += CONCURRENCY) {
-    await Promise.allSettled(
-      endpoints.slice(i, i + CONCURRENCY).map(async ep => {
-        const check = await checkEndpoint(ep.url, ep.method, ep.expected_status, ep.timeout_ms, ep.id)
-        result.checked++
-        if (!check.is_up) result.failed++
+for (let i = 0; i < endpoints.length; i += CONCURRENCY) {
+  await Promise.allSettled(
+    endpoints.slice(i, i + CONCURRENCY).map(async ep => {
+      const check = await checkEndpoint(
+        ep.url, 
+        ep.method ?? 'GET',        // Handle null method
+        ep.expected_status ?? 200, // Handle null expected_status
+        ep.timeout_ms ?? 5000,     // Handle null timeout_ms
+        ep.id
+      )
+      result.checked++
+      if (!check.is_up) result.failed++
 
         await sb.from('checks').insert({
           endpoint_id: check.endpoint_id, is_up: check.is_up,
