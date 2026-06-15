@@ -99,9 +99,9 @@ for (let i = 0; i < endpoints.length; i += CONCURRENCY) {
     endpoints.slice(i, i + CONCURRENCY).map(async ep => {
       const check = await checkEndpoint(
         ep.url, 
-        ep.method ?? 'GET',        // Handle null method
-        ep.expected_status ?? 200, // Handle null expected_status
-        ep.timeout_ms ?? 5000,     // Handle null timeout_ms
+        ep.method ?? 'GET',        
+        ep.expected_status ?? 200, 
+        ep.timeout_ms ?? 5000,     
         ep.id
       )
       result.checked++
