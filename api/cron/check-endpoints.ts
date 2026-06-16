@@ -77,11 +77,20 @@ async function sendAlerts(
 
 export default async function handler(req: Request): Promise<Response> {
     // ── DEBUG ──────────────────────────────────────────────
-  const authHeader = req.headers.get('authorization')
-  console.log('[Cron] Auth header received:', authHeader)
-  console.log('[Cron] Expected secret:', process.env.CRON_SECRET)
-  // ──────────────────────────────────────────────────────
-  if (!isCronRequest(req)) return new Response('Unauthorized', { status: 401 })
+  const authHeader = req.headers.get('authorization') || req.headers.get('Authorization')
+  const expected = process.env.CRON_SECRET
+  
+  // Return debug info in response body
+  if (!isCronRequest(req)) {
+    return new Response(JSON.stringify({
+      error: 'Unauthorized',
+      debug: {
+        headerReceived: authHeader,
+        expectedSecret: expected ? 'set' : 'undefined',
+        headerMatch: authHeader === `Bearer ${expected}`,
+      }
+    }), { status: 401 })
+  }
 
   const t0 = Date.now()
   const supabaseUrl = process.env.SUPABASE_URL
