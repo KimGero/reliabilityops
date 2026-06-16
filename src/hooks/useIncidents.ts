@@ -1,4 +1,4 @@
-// ─── Fix imports ─────────────────────────────────────────────
+// src/hooks/useIncidents.ts
 import { useEffect, useReducer, useCallback } from 'react'
 import { supabase, fetchRecentIncidents } from '../lib/supabase.js'
 import type { Incident, IncidentStatus } from '../types/index.js'
@@ -14,14 +14,27 @@ type Action =
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case 'SET_LOADING':   return { ...state, loading: action.payload }
-    case 'SET_INCIDENTS': return { ...state, incidents: action.payload, loading: false }
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload }
+    case 'SET_INCIDENTS':
+      return { ...state, incidents: action.payload, loading: false }
     case 'UPSERT_INCIDENT': {
       const exists = state.incidents.some(i => i.id === action.payload.id)
-      if (exists) return { ...state, incidents: state.incidents.map(i => i.id === action.payload.id ? { ...i, ...action.payload } : i) }
-      return { ...state, incidents: [action.payload, ...state.incidents].slice(0, 50) }
+      if (exists) {
+        return {
+          ...state,
+          incidents: state.incidents.map(i =>
+            i.id === action.payload.id ? { ...i, ...action.payload } : i
+          )
+        }
+      }
+      return {
+        ...state,
+        incidents: [action.payload, ...state.incidents].slice(0, 50)
+      }
     }
-    default: return state
+    default:
+      return state
   }
 }
 
@@ -37,24 +50,38 @@ export function useIncidents() {
   useEffect(() => {
     load()
 
-    const ch = supabase
-      .channel('incidents-feed')
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'incidents' }, async ({ new: n }: { new: Incident }) => {
-        const id = (n as Incident).id
+    // ─── REALTIME DISABLED (temporarily) ────────────────────────────
+    // Uncomment this when you upgrade @supabase/supabase-js
+    /*
+    const ch = supabase.channel('incidents-feed')
+    ch.on('postgres_changes' as any, 
+      { event: '*', schema: 'public', table: 'incidents' },
+      async (payload: any) => {
+        const n = payload.new as Incident
+        const id = n.id
         const { data } = await supabase
-          .from('incidents').select('*, endpoint:endpoints(id, name, url)').eq('id', id).single()
-        if (data) dispatch({ type: 'UPSERT_INCIDENT', payload: data as Incident })
-      })
-      .subscribe()
-
+          .from('incidents')
+          .select('*, endpoint:endpoints(id, name, url)')
+          .eq('id', id)
+          .single()
+        if (data) {
+          dispatch({ type: 'UPSERT_INCIDENT', payload: data as Incident })
+        }
+      }
+    )
+    ch.subscribe()
     return () => { supabase.removeChannel(ch) }
+    */
   }, [load])
 
   const acknowledge = useCallback(async (id: string): Promise<void> => {
-    const { error } = await supabase.from('incidents').update({
-      acknowledged_by: getLocalUserName(),
-      acknowledged_at: new Date().toISOString(),
-    }).eq('id', id)
+    const { error } = await supabase
+      .from('incidents')
+      .update({
+        acknowledged_by: getLocalUserName(),
+        acknowledged_at: new Date().toISOString(),
+      })
+      .eq('id', id)
     if (error) throw error
     await logAudit({ action: 'incident.acknowledged', resourceType: 'incident', resourceId: id })
   }, [])
@@ -66,9 +93,13 @@ export function useIncidents() {
   }, [])
 
   const resolveIncident = useCallback(async (id: string): Promise<void> => {
-    const { error } = await supabase.from('incidents').update({
-      resolved_at: new Date().toISOString(), status: 'Resolved',
-    }).eq('id', id)
+    const { error } = await supabase
+      .from('incidents')
+      .update({
+        resolved_at: new Date().toISOString(),
+        status: 'Resolved',
+      })
+      .eq('id', id)
     if (error) throw error
     await logAudit({ action: 'incident.resolved', resourceType: 'incident', resourceId: id })
   }, [])
