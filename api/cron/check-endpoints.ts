@@ -76,6 +76,11 @@ async function sendAlerts(
 }
 
 export default async function handler(req: Request): Promise<Response> {
+    // ── DEBUG ──────────────────────────────────────────────
+  const authHeader = req.headers.get('authorization')
+  console.log('[Cron] Auth header received:', authHeader)
+  console.log('[Cron] Expected secret:', process.env.CRON_SECRET)
+  // ──────────────────────────────────────────────────────
   if (!isCronRequest(req)) return new Response('Unauthorized', { status: 401 })
 
   const t0 = Date.now()
