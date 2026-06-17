@@ -1,20 +1,20 @@
 
-import type { Endpoint, Incident } from '../types/index.js' 
-import { calculateMTTR, errorBudgetRemainingPct } from '../lib/utils.js'  
+import type { Endpoint, Incident } from '../types/index.js'
+import { calculateMTTR, errorBudgetRemainingPct } from '../lib/utils.js'
 
 interface Props {
-  endpoints: Endpoint[]
-  incidents: Incident[]
+  endpoints:     Endpoint[]
+  incidents:     Incident[]
   incidentCount: number
 }
 
 export function StatsBar({ endpoints, incidents, incidentCount }: Props) {
-  const total = endpoints.length
-  const up = endpoints.filter(e => e.status === 'up').length
-  const down = endpoints.filter(e => e.status === 'down').length
+  const total    = endpoints.length
+  const up       = endpoints.filter(e => e.status === 'up').length
+  const down     = endpoints.filter(e => e.status === 'down').length
   const degraded = endpoints.filter(e => e.status === 'degraded').length
-  const times = endpoints.map(e => e.last_response_time_ms).filter((t): t is number => typeof t === 'number')
-  const avgTime = times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : null
+  const times    = endpoints.map(e => e.last_response_time_ms).filter((t): t is number => typeof t === 'number')
+  const avgTime  = times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : null
   const allHealthy = down === 0 && degraded === 0
 
   const mttr = calculateMTTR(incidents)
@@ -36,9 +36,9 @@ export function StatsBar({ endpoints, incidents, incidentCount }: Props) {
 
       <div className="stat-group divider">
         <Stat label="ENDPOINTS" value={total.toString()} />
-        <Stat label="UP" value={up.toString()} color="green" />
+        <Stat label="UP"        value={up.toString()}    color="green" />
         {degraded > 0 && <Stat label="DEGRADED" value={degraded.toString()} color="amber" />}
-        {down > 0 && <Stat label="DOWN" value={down.toString()} color="red" />}
+        {down > 0     && <Stat label="DOWN"     value={down.toString()}     color="red"   />}
       </div>
 
       <div className="stat-group divider">
@@ -49,7 +49,7 @@ export function StatsBar({ endpoints, incidents, incidentCount }: Props) {
       </div>
 
       <div className="stat-group divider">
-        <Stat label="MTTR" value={mttr !== null ? `${mttr}m` : '—'} />
+        <Stat label="MTTR"         value={mttr !== null ? `${mttr}m` : '—'} />
         <Stat label="ERROR BUDGET" value={`${avgBudget}%`} color={avgBudget < 10 ? 'red' : avgBudget < 50 ? 'amber' : undefined} />
       </div>
     </div>
@@ -64,4 +64,3 @@ function Stat({ label, value, color }: { label: string; value: string; color?: '
     </div>
   )
 }
-

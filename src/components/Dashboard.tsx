@@ -45,8 +45,7 @@ export function Dashboard() {
         </div>
       </header>
 
-      <StatsBar endpoints={endpoints} incidents={incidents} incidentCount={openIncidents.length} />
-
+<StatsBar endpoints={endpoints} incidents={incidents} incidentCount={openIncidents.length} />
       <main className="main-area">
         <section className={`endpoint-section${showTeam ? ' endpoint-section--with-sidebar' : ''}`}>
           {loading && <div className="loading-state"><div className="loading-spinner" /><span>Loading…</span></div>}
