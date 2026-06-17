@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npm run build",
   "installCommand": "npm install --legacy-peer-deps",
+  "buildCommand": "npm run build",
   "crons": [
     {
       "path": "/api/cron/check-endpoints",
@@ -9,7 +9,8 @@
   ],
   "functions": {
     "api/cron/check-endpoints.ts": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "installCommand": "npm install --legacy-peer-deps"
     }
   }
 }
