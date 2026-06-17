@@ -40,7 +40,8 @@ export function TeamFeed() {
             <CheckCircle size={20} style={{ opacity: 0.2 }} />
             <span>No incidents in the last 48h</span>
           </div>
-        )}
+        )} 
+        
         {incidents.map((inc: Incident) => (  // ← Fixed: explicit type
           <IncidentRow key={inc.id} incident={inc} onAck={acknowledge} onEscalate={escalate} onResolve={resolveIncident} />
         ))}
