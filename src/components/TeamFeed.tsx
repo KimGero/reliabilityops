@@ -4,6 +4,7 @@ import { useIncidents } from '../hooks/useIncidents.js'  // ← Add .js
 import { usePresence } from '../hooks/usePresence.js'  // ← Add .js
 import { formatRelativeTime, incidentStatusColor } from '../lib/utils.js'  // ← Add .js
 import type { Incident, IncidentStatus } from '../types/index.js'  // ← Add .js
+import { AuditLog } from './AuditLog.js'
 
 export function TeamFeed() {
   const { incidents, openIncidents, acknowledge, escalate, resolveIncident } = useIncidents()
@@ -41,6 +42,7 @@ export function TeamFeed() {
             <span>No incidents in the last 48h</span>
           </div>
         )} 
+        <AuditLog />
         
         {incidents.map((inc: Incident) => (  // ← Fixed: explicit type
           <IncidentRow key={inc.id} incident={inc} onAck={acknowledge} onEscalate={escalate} onResolve={resolveIncident} />

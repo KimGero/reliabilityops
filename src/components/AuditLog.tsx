@@ -1,5 +1,7 @@
-import { useAuditLog } from '../hooks/useAuditLog'
-import { formatRelativeTime } from '../lib/utils'
+// src/components/AuditLog.tsx
+import { useAuditLog } from '../hooks/useAuditLog.js'  // ← Add .js
+import { formatRelativeTime } from '../lib/utils.js'  // ← Add .js
+import type { AuditLogEntry } from '../types/index.js'  // ← Add .js
 
 const ACTION_META: Record<string, { symbol: string; color: string }> = {
   'endpoint.created':      { symbol: '+', color: '#4ade80' },
@@ -19,7 +21,7 @@ export function AuditLog() {
       {entries.length === 0 && (
         <div style={{ padding: '16px 12px', color: '#566577', fontSize: 11 }}>No activity yet.</div>
       )}
-      {entries.map(e => {
+      {entries.map((e: AuditLogEntry) => {  // ← Fixed: explicit type
         const meta = ACTION_META[e.action] ?? { symbol: '·', color: '#475569' }
         return (
           <div key={e.id} className="audit-row">

@@ -25,7 +25,7 @@ export interface Endpoint {
   created_by: string | null
   created_at: string
   updated_at: string
-  // Computed from latest check
+  
   status?: EndpointStatus
   last_response_time_ms?: number | null
   last_checked_at?: string | null
