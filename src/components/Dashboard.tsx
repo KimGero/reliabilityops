@@ -1,6 +1,7 @@
-
+// src/components/Dashboard.tsx
 import { useState } from "react"
-import { Plus, RefreshCw, Wifi, WifiOff } from "lucide-react"
+import { useNavigate, useLocation } from "react-router-dom"
+import { Plus, RefreshCw, Wifi, WifiOff, BarChart2 } from "lucide-react"
 import { useEndpoints } from '../hooks/useEndpoints.js'  
 import { useIncidents } from '../hooks/useIncidents.js'  
 import { EndpointCard } from './EndpointCard.js'  
@@ -8,6 +9,18 @@ import { AddEndpointModal } from './AddEndpointModal.js'
 import { StatsBar } from './StatsBar.js'  
 import { TeamFeed } from './TeamFeed.js'  
 import type { Endpoint } from '../types/index.js'  
+
+// ─── NavLink Component ──────────────────────────────────────────────────────
+function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const active = pathname === to
+  return (
+    <button className={`nav-link${active ? ' nav-link--active' : ''}`} onClick={() => navigate(to)}>
+      {children}
+    </button>
+  )
+}
 
 export function Dashboard() {
   const { endpoints, loading, error, reload, addEndpoint, removeEndpoint } = useEndpoints()
@@ -17,7 +30,11 @@ export function Dashboard() {
   const [reloading, setReloading] = useState(false)
   const [liveMode, setLiveMode] = useState(true)
 
-  const handleReload = async () => { setReloading(true); await reload(); setReloading(false) }
+  const handleReload = async () => { 
+    setReloading(true)
+    await reload()
+    setReloading(false) 
+  }
 
   return (
     <div className="dashboard">
@@ -27,6 +44,13 @@ export function Dashboard() {
           <span className="brand-name">ReliabilityOps</span>
           <span className="brand-tag">v1.0</span>
         </div>
+
+        {/* ─── NAVIGATION ─────────────────────────────────────────────────── */}
+        <nav className="topbar__nav">
+          <NavLink to="/">MONITOR</NavLink>
+          <NavLink to="/exec">ANALYTICS</NavLink>
+        </nav>
+
         <div className="topbar__controls">
           <button className={`control-btn${liveMode ? ' control-btn--active' : ''}`} onClick={() => setLiveMode(l => !l)}>
             {liveMode ? <Wifi size={13} /> : <WifiOff size={13} />}
@@ -45,7 +69,8 @@ export function Dashboard() {
         </div>
       </header>
 
-<StatsBar endpoints={endpoints} incidents={incidents} incidentCount={openIncidents.length} />
+      <StatsBar endpoints={endpoints} incidents={incidents} incidentCount={openIncidents.length} />
+      
       <main className="main-area">
         <section className={`endpoint-section${showTeam ? ' endpoint-section--with-sidebar' : ''}`}>
           {loading && <div className="loading-state"><div className="loading-spinner" /><span>Loading…</span></div>}
@@ -73,4 +98,3 @@ export function Dashboard() {
     </div>
   )
 }
-

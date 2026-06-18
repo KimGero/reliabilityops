@@ -1,9 +1,12 @@
+// src/App.tsx
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase.js'
 import type { Session } from '@supabase/supabase-js'
 import { Dashboard } from './components/Dashboard.js'
 import { Auth } from './pages/Auth.js'
+import { StatusPage } from './pages/StatusPage.js'  // ← ADD THIS IMPORT
+import { ExecDashboard } from './pages/ExecDashboard.js'  // ← OPTIONAL: if you have it
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -17,7 +20,13 @@ export default function App() {
   // Still loading initial session
   if (session === undefined) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        background: 'var(--bg-base)' 
+      }}>
         <div className="loading-spinner" />
       </div>
     )
@@ -26,16 +35,21 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* ─── PUBLIC ROUTES (no auth required) ────────────────────────────── */}
+        <Route path="/status/:slug" element={<StatusPage />} />
+
+        {/* ─── AUTH ROUTES ──────────────────────────────────────────────────── */}
         {!session ? (
           <>
             <Route path="/auth" element={<Auth />} />
-            <Route path="*"     element={<Navigate to="/auth" replace />} />
+            <Route path="*" element={<Navigate to="/auth" replace />} />
           </>
         ) : (
           <>
-            <Route path="/"    element={<Dashboard />} />
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/exec" element={<ExecDashboard />} />  {/* ← OPTIONAL */}
             <Route path="/auth" element={<Navigate to="/" replace />} />
-            <Route path="*"    element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </>
         )}
       </Routes>
