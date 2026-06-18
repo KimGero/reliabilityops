@@ -5,8 +5,8 @@ import { supabase } from './lib/supabase.js'
 import type { Session } from '@supabase/supabase-js'
 import { Dashboard } from './components/Dashboard.js'
 import { Auth } from './pages/Auth.js'
-import { StatusPage } from './pages/StatusPage.js'  // ← ADD THIS IMPORT
-import { ExecDashboard } from './pages/ExecDashboard.js'  // ← OPTIONAL: if you have it
+import { StatusPage } from './pages/StatusPage.js'  
+import { ExecDashboard } from './pages/ExecDashboard.js'  
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -17,7 +17,7 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Still loading initial session
+  
   if (session === undefined) {
     return (
       <div style={{ 
